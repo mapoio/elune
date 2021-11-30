@@ -43,6 +43,7 @@ type Database interface {
 	Exec(sqlTemplate string, values ...interface{}) error
 	Rollback()
 	Commit() error
+	SetMigrationVersion(version, sqlType string)
 }
 
 type Option interface {
@@ -160,6 +161,9 @@ func (d *migration) PrepareUp(targetVersion string) Migration {
 	for _, version := range selectVersion {
 		d.script[version].SetOption(o).Up()
 	}
+	if len(d.ddlSqlList) > 0 || len(d.dmlSqlList) > 0 {
+		d.db.SetMigrationVersion(targetVersion, "up")
+	}
 	return d
 }
 
@@ -167,9 +171,13 @@ func (d *migration) PrepareDown(targetVersion string) Migration {
 	currentVersion := d.db.LastRunVersion()
 	selectVersion := getVersionSpan(d.script, targetVersion, currentVersion)
 	sort.Sort(sort.Reverse(sort.StringSlice(selectVersion)))
+	d.db.SetMigrationVersion(targetVersion, "down")
 	o := &option{d}
 	for _, version := range selectVersion {
 		d.script[version].SetOption(o).Down()
+	}
+	if len(d.ddlSqlList) > 0 || len(d.dmlSqlList) > 0 {
+		d.db.SetMigrationVersion(targetVersion, "down")
 	}
 	return d
 }

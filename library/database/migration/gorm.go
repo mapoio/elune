@@ -4,14 +4,23 @@ import (
 	"database/sql"
 	"strings"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
+type GormMigration struct {
+	gorm.Model
+	Version string
+	Type    string
+}
+
+func (GormMigration) TableName() string {
+	return "gorm_auto_migration_table_do_not_delete"
+}
+
 type gormConn struct {
-	demoDb *gorm.DB
-	rwDb   *gorm.DB
+	demoDb  *gorm.DB
+	rwDb    *gorm.DB
+	version *GormMigration
 }
 
 func (g *gormConn) GetSQL(sqlTemplate string, values ...interface{}) SqlItem {
@@ -32,9 +41,20 @@ func (g *gormConn) FindAll(sqlTemplate string, values ...interface{}) (*sql.Rows
 	return g.rwDb.Raw(sqlTemplate, values...).Rows()
 }
 
+func (g *gormConn) SetMigrationVersion(version, sqlType string) {
+	g.version = &GormMigration{
+		Version: version,
+		Type:    sqlType,
+	}
+}
+
 func (g *gormConn) LastRunVersion() string {
-	// TODO: code write here
-	return "0.0.0"
+	version := &GormMigration{
+		Version: "0.0.0",
+		Type:    "init",
+	}
+	g.rwDb.Last(version)
+	return version.Version
 }
 
 func (g *gormConn) Exec(sqlTemplate string, values ...interface{}) error {
@@ -47,6 +67,12 @@ func (g *gormConn) Rollback() {
 }
 
 func (g *gormConn) Commit() error {
+	if g.version != nil {
+		err := g.rwDb.Create(g.version).Error
+		if err != nil {
+			panic("create version error: " + err.Error())
+		}
+	}
 	db := g.rwDb.Commit()
 	return db.Error
 }
@@ -55,19 +81,14 @@ func (g *gormConn) Drive() string {
 	return g.rwDb.Dialector.Name()
 }
 
-func NewGorm(drive, dsn string) *gormConn {
-	var d gorm.Dialector
-	switch drive {
-	case "postgres":
-		d = postgres.Open(dsn)
-	case "sqlite":
-		d = sqlite.Open(dsn)
-	default:
-		panic("only support postgres or sqlite")
-	}
-	db, err := gorm.Open(d, &gorm.Config{})
+func NewGorm(director gorm.Dialector) *gormConn {
+	db, err := gorm.Open(director, &gorm.Config{})
 	if err != nil {
-		panic("failed to connect database")
+		panic("connect database failed: " + err.Error())
+	}
+	err = db.AutoMigrate(&GormMigration{})
+	if err != nil {
+		panic("AutoMigrate failed: " + err.Error())
 	}
 	return &gormConn{
 		demoDb: db.Session(&gorm.Session{DryRun: true}),
