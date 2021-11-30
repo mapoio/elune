@@ -21,6 +21,7 @@ vendor
 .vscode
 .DS_Store
 .idea
+/.run
 
 # Misc
 *.fiber.gz
@@ -33,4 +34,3 @@ vendor
 /packed/
 /target/
 test.db
-/.idea/

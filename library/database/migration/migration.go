@@ -77,7 +77,7 @@ type Migration interface {
 	PreparePatchDown(targetVersion string) Migration
 }
 
-func New(db Database) Migration {
+func New(db Database) *migration {
 	return &migration{db: db, ddlSqlList: []SqlItem{}, dmlSqlList: []SqlItem{}, script: map[string]Script{}}
 }
 

@@ -12,7 +12,7 @@ import (
 
 func script() {
 	orm := migration.NewGorm(sqlite.Open("test.db"))
-	m := migration.New(orm)
+	var m migration.Migration = migration.New(orm)
 	m.AddScript("0.0.1", &v001{})
 	m.PrepareUp("0.0.1")
 	fmt.Println(m)
